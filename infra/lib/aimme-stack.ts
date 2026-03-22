@@ -47,7 +47,8 @@ export class AimmeStack extends Stack {
         desiredCount: 1,
         taskImageOptions: {
           image: ecs.ContainerImage.fromRegistry('amazon/amazon-ecs-sample'),
-          containerPort: 8000,
+          // Sample image serves HTTP on 80; 8000 makes the ALB health check fail.
+          containerPort: 80,
           environment: {
             TABLE_NAME: table.tableName,
             SNS_TOPIC_ARN: topic.topicArn,
