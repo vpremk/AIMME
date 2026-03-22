@@ -1,0 +1,118 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      # Host 6380 avoids clashing with a local Redis on 6379; containers still use redis:6379
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  localstack:
+    image: localstack/localstack:3
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,sqs,sns,dynamodb
+      DEBUG: "0"
+    volumes:
+      - localstack-data:/var/lib/localstack
+
+  ingestion:
+    build:
+      context: ./services/ingestion
+      dockerfile: Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      REDIS_STREAM: market_data
+      USE_MOCK: "true"
+      POLYGON_WSS_URL: wss://polygon-bor.publicnode.com
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  processor:
+    build:
+      context: ./services/processor
+      dockerfile: Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      REDIS_STREAM: market_data
+      AI_SERVICE_URL: http://ai_service:8001
+      API_URL: http://api:8000
+      WHALE_VOLUME_THRESHOLD: "500000"
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai_service:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  ai_service:
+    build:
+      context: .
+      dockerfile: services/ai_service/Dockerfile
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')\"",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    environment:
+      USE_GROQ: "false"
+      GROQ_API_KEY: ""
+      GROQ_MODEL: llama-3.1-8b-instant
+      LOG_LEVEL: INFO
+      REDIS_URL: redis://redis:6379/0
+      ALERTS_REDIS_CHANNEL: alerts
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\"",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      SIGNAL_STORAGE: sqlite
+      SQLITE_PATH: /data/signals.db
+      SEED_DEMO_SIGNALS: "false"
+    volumes:
+      - api-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_started
+
+volumes:
+  localstack-data:
+  api-data:

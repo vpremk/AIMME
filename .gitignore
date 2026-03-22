@@ -1,0 +1,59 @@
+# OS & editors
+.DS_Store
+Thumbs.db
+.idea/
+*.sublime-*
+
+# Environment & secrets (keep *.example committed)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env*.example
+*.pem
+*.key
+*.p12
+secrets/
+credentials.json
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+
+# Node (any package in the repo)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# AWS CDK
+**/cdk.out/
+*.tsbuildinfo
+
+# Terraform (if added later)
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+
+# Local data / caches
+*.log
+*.sqlite
+*.db
