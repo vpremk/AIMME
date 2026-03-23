@@ -27,12 +27,11 @@ supports reliable development workflows and production-style deployment without 
 
 - Faster signal-to-insight cycle for market monitoring and decision support.
 - Clear operational boundaries across ingestion, processing, alerting, and presentation.
-- Portable architecture for internal tooling, client-facing dashboards, or managed services.
 - Revenue-ready packaging across multiple channels:
-  - **SaaS subscriptions** (tiered plans by assets covered, refresh frequency, and alert volume)
+  - **SaaS subscriptions** tiered plans by assets covered, refresh frequency, and alert volume
   - **API usage billing** (per-request / per-signal pricing for partners and integrators)
-  - **Enterprise licensing** (private deployment, SSO/RBAC, SLA and support contracts)
-  - **Data/insight add-ons** (premium anomaly feeds, strategy packs, and historical analytics exports)
+  - **Enterprise licensing** private deployment, SSO/RBAC, SLA and support contracts
+  - **Data/insight add-ons** premium anomaly feeds, strategy packs, and historical analytics exports
 
 ## Stack
 
@@ -249,7 +248,8 @@ Example: this stack exposes `POST /alert`, not `GET /alerts` by default.
 - Improve API-level observability (request correlation, structured logs, and error taxonomy).
 
 ### Next
-
+- Authentication, Authorization, RBAC for Monitoring, Trading, Admin roles
+- CI/CD
 - Add richer strategy logic and configurable thresholds per asset/profile.
 - Integrate managed event backbones (e.g., Redis Streams/Kinesis) for higher throughput.
 - Introduce stronger data quality checks and replay-safe processing semantics.

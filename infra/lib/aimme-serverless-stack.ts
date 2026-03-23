@@ -9,6 +9,7 @@ import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as path from 'path';
 
@@ -48,6 +49,8 @@ export class AimmeServerlessStack extends cdk.Stack {
     const useGroq = props?.useGroq === true;
     const groqApiKey = props?.groqApiKey ?? '';
     const alertEmail = props?.alertEmail;
+    const requireApiKey = this.node.tryGetContext('requireApiKey') === true;
+    const wafRateLimit = Number(this.node.tryGetContext('wafRateLimit') ?? 2000);
 
     // --- SNS: alerts (optional email demo subscription) ---
     const alertsTopic = new sns.Topic(this, 'AlertsTopic', {
@@ -154,14 +157,103 @@ export class AimmeServerlessStack extends cdk.Stack {
     const signals = api.root.addResource('signals');
     const ingestionIntegration = new apigateway.LambdaIntegration(ingestionFn);
     signals.addMethod('GET', ingestionIntegration);
-    signals.addMethod('POST', ingestionIntegration);
+    signals.addMethod('POST', ingestionIntegration, { apiKeyRequired: requireApiKey });
 
     // Optional manual test endpoints (same Lambdas expose /process and /alert)
     const processRes = api.root.addResource('process');
-    processRes.addMethod('POST', new apigateway.LambdaIntegration(processingFn));
+    processRes.addMethod('POST', new apigateway.LambdaIntegration(processingFn), {
+      apiKeyRequired: requireApiKey,
+    });
 
     const alertRes = api.root.addResource('alert');
-    alertRes.addMethod('POST', new apigateway.LambdaIntegration(alertsFn));
+    alertRes.addMethod('POST', new apigateway.LambdaIntegration(alertsFn), {
+      apiKeyRequired: requireApiKey,
+    });
+
+    if (requireApiKey) {
+      const key = api.addApiKey('AimmeApiKey', {
+        description: 'AIMME write/test endpoint API key',
+      });
+      const plan = api.addUsagePlan('AimmeUsagePlan', {
+        name: 'aimme-standard-plan',
+        throttle: {
+          rateLimit: 50,
+          burstLimit: 25,
+        },
+        quota: {
+          limit: 100000,
+          period: apigateway.Period.MONTH,
+        },
+      });
+      plan.addApiKey(key);
+      plan.addApiStage({ stage: api.deploymentStage });
+    }
+
+    // Regional WAF on API Gateway stage: managed protections + rate limiting.
+    const webAcl = new wafv2.CfnWebACL(this, 'AimmeApiWebAcl', {
+      scope: 'REGIONAL',
+      defaultAction: { allow: {} },
+      visibilityConfig: {
+        cloudWatchMetricsEnabled: true,
+        metricName: 'aimme-api-web-acl',
+        sampledRequestsEnabled: true,
+      },
+      rules: [
+        {
+          name: 'AWSManagedCommonRules',
+          priority: 0,
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: 'AWS',
+              name: 'AWSManagedRulesCommonRuleSet',
+            },
+          },
+          overrideAction: { none: {} },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: 'aimme-common-rules',
+            sampledRequestsEnabled: true,
+          },
+        },
+        {
+          name: 'AWSManagedIpReputation',
+          priority: 1,
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: 'AWS',
+              name: 'AWSManagedRulesAmazonIpReputationList',
+            },
+          },
+          overrideAction: { none: {} },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: 'aimme-ip-reputation-rules',
+            sampledRequestsEnabled: true,
+          },
+        },
+        {
+          name: 'RateLimitRule',
+          priority: 2,
+          action: { block: {} },
+          statement: {
+            rateBasedStatement: {
+              aggregateKeyType: 'IP',
+              limit: wafRateLimit,
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: 'aimme-rate-limit-rule',
+            sampledRequestsEnabled: true,
+          },
+        },
+      ],
+    });
+
+    new wafv2.CfnWebACLAssociation(this, 'AimmeApiWebAclAssociation', {
+      resourceArn: `arn:aws:apigateway:${this.region}::/restapis/${api.restApiId}/stages/${api.deploymentStage.stageName}`,
+      webAclArn: webAcl.attrArn,
+    });
 
     new cdk.CfnOutput(this, 'RestApiUrl', {
       description: 'Invoke GET/POST {url}signals',

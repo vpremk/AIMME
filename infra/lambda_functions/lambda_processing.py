@@ -17,6 +17,8 @@ except Exception:
     Mangum = None
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "SignalsTable")
+USE_GROQ = str(os.environ.get("USE_GROQ", "false")).lower() == "true"
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
 _deser = TypeDeserializer()
@@ -52,6 +54,8 @@ def _process_raw(row: dict) -> None:
             "score": score,
             "anomaly": signal == "BUY" and vol > 500_000,
             "sourceTimestamp": row.get("timestamp"),
+            "aiProvider": "groq" if USE_GROQ else "rules",
+            "aiModel": GROQ_MODEL if USE_GROQ else "deterministic-volume-rules",
         }
     )
 

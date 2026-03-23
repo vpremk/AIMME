@@ -1,0 +1,159 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.6.4">
+  <diagram id="aimme-arch" name="AIMME Cloud Architecture">
+    <mxGraphModel dx="1621" dy="1089" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=20;fontStyle=1;" value="AI Market Microstructure Engine (AIMME) - Cloud Architecture" vertex="1">
+          <mxGeometry height="30" width="740" x="30" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="clientBox" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#0288d1;fontStyle=1;" value="Client &amp; Edge" vertex="1">
+          <mxGeometry height="740" width="360" x="30" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="awsBox" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#ef6c00;fontStyle=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" value="AWS Cloud (Serverless Data Plane)" vertex="1">
+          <mxGeometry height="740" width="1120" x="430" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="browser" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1976d2;" value="User Browser&#xa;AIMME Dashboard" vertex="1">
+          <mxGeometry height="70" width="150" x="60" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="vercel" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1976d2;" value="Vercel&#xa;Next.js UI + pages/api proxy" vertex="1">
+          <mxGeometry height="70" width="130" x="240" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="proxyroutes" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#90a4ae;" value="/api/signals&#xa;/api/alerts&#xa;/api/process&#xa;/api/alert" vertex="1">
+          <mxGeometry height="90" width="300" x="70" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="apigw" parent="1" style="shape=mxgraph.aws4.api_gateway;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;fillColor=light-dark(#044303, #009700);strokeColor=#005700;fontColor=#ffffff;" value="&lt;font style=&quot;color: rgb(51, 0, 0);&quot;&gt;Amazon API Gateway&lt;br&gt;REST API&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="180" x="500" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="Qlej9bAji5xSZOdvroyq-2" edge="1" parent="1" source="ingestLambda" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="processLambda" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ingestLambda" parent="1" style="shape=mxgraph.aws4.lambda;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;fillColor=#d80073;fontColor=#ffffff;strokeColor=#A50040;" value="" vertex="1">
+          <mxGeometry height="90" width="210" x="760" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="processLambda" parent="1" style="shape=mxgraph.aws4.lambda;verticalLabelPosition=bottom;verticalAlign=top;align=left;html=1;aspect=fixed;fillColor=#d80073;fontColor=#ffffff;strokeColor=#A50040;" value="" vertex="1">
+          <mxGeometry height="100" width="210" x="753.26" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="alertsLambda" parent="1" style="shape=mxgraph.aws4.lambda;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;fillColor=#d80073;fontColor=#ffffff;strokeColor=#A50040;" value="" vertex="1">
+          <mxGeometry height="100" width="210" x="760" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="ddb" parent="1" style="shape=mxgraph.aws4.dynamodb;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;fillColor=#6a00ff;fontColor=#ffffff;strokeColor=#3700CC;" value="" vertex="1">
+          <mxGeometry height="120" width="240" x="1060" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="notes" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#8e24aa;" value="Security: Browser only calls same-origin /api/*&#xa;Proxy hides direct AWS API endpoint details from Network tab" vertex="1">
+          <mxGeometry height="80" width="310" x="65" y="478.25" as="geometry" />
+        </mxCell>
+        <mxCell id="ops" parent="1" style="shape=mxgraph.aws4.cloudwatch;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;fillColor=#0050ef;fontColor=#ffffff;strokeColor=#001DBC;" value="&lt;font style=&quot;color: rgb(51, 0, 0);&quot;&gt;Amazon CloudWatch&lt;br&gt;Logs + requestId tracing&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="150" x="1370" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="edge1" edge="1" parent="1" source="browser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1e88e5;" target="vercel" value="1. HTTPS">
+          <mxGeometry relative="1" x="0.6027" y="45" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge2" edge="1" parent="1" source="vercel" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#1e88e5;" target="apigw" value="2. /api/*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge3" edge="1" parent="1" source="apigw" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ef6c00;" target="ingestLambda" value="3. GET/POST /signals">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge4" edge="1" parent="1" source="ingestLambda" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ef6c00;" target="ddb" value="4. put raw item">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge5" edge="1" parent="1" source="ddb" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ffb300;" value="5. stream events">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1180" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge6" edge="1" parent="1" source="BAnDICIe1d7iCKYroEtQ-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ef6c00;" target="processLambda" value="6. trigger processing">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1060" y="390.0666666666666" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge7" edge="1" parent="1" source="processLambda" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ef6c00;" target="ddb" value="7. put signal item">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1018" y="290" />
+              <mxPoint x="1018" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge8" edge="1" parent="1" source="BAnDICIe1d7iCKYroEtQ-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ef6c00;" target="alertsLambda" value="8. trigger alerts">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1000" y="430" />
+              <mxPoint x="1000" y="480" />
+            </Array>
+            <mxPoint x="1060" y="390.0666666666666" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge9" edge="1" parent="1" source="alertsLambda" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ef6c00;entryX=0;entryY=0.48;entryDx=0;entryDy=0;entryPerimeter=0;" target="Qlej9bAji5xSZOdvroyq-4" value="9. publish">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1000" y="480" />
+              <mxPoint x="1000" y="587" />
+            </Array>
+            <mxPoint x="1060" y="520.0666666666666" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge10" edge="1" parent="1" source="Qlej9bAji5xSZOdvroyq-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6a1b9a;" value="10. fan-out">
+          <mxGeometry relative="1" x="-0.0095" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="1300" y="520" as="sourcePoint" />
+            <mxPoint x="1370" y="586.4666666666665" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge11" edge="1" parent="1" source="ingestLambda" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#455a64;" target="ops" value="11. logs + metrics">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge12" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#455a64;" target="ops" value="12. logs + metrics">
+          <mxGeometry relative="1" x="-0.3967" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1280" y="320" />
+              <mxPoint x="1280" y="320" />
+            </Array>
+            <mxPoint x="930" y="320" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge13" edge="1" parent="1" source="alertsLambda" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#455a64;" target="ops" value="13. logs + metrics">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1445" y="510" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Qlej9bAji5xSZOdvroyq-1" edge="1" parent="1" source="processLambda" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="processLambda">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qlej9bAji5xSZOdvroyq-4" parent="1" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.sns;fillColor=#D9A741;gradientColor=none;" value="" vertex="1">
+          <mxGeometry height="76.5" width="76.5" x="1141.75" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="BAnDICIe1d7iCKYroEtQ-2" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#C925D1;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.dynamodb_stream;" value="&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;DynamoDB Streams&lt;/span&gt;&lt;br style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;NEW_IMAGE&lt;/span&gt;" vertex="1">
+          <mxGeometry height="78" width="78" x="1141.75" y="352" as="geometry" />
+        </mxCell>
+        <mxCell id="BAnDICIe1d7iCKYroEtQ-3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="&lt;div&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;color: light-dark(rgb(51, 0, 0), rgb(255, 218, 218)); background-color: transparent;&quot;&gt;Amazon DynamoDB&lt;/span&gt;&lt;/div&gt;&lt;/span&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;SignalsTable&lt;/span&gt;&lt;br style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;PK: asset, SK: timestamp&lt;/span&gt;&lt;br style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;Modes: raw + signal rows&lt;/span&gt;" vertex="1">
+          <mxGeometry height="30" width="60" x="1250" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="BAnDICIe1d7iCKYroEtQ-5" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;Lambda: Processing&lt;/span&gt;&lt;br style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;DynamoDB Stream trigger&lt;/span&gt;&lt;br style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;raw -&amp;gt; BUY/SELL/HOLD signal&lt;/span&gt;" vertex="1">
+          <mxGeometry height="30" width="60" x="610" y="322" as="geometry" />
+        </mxCell>
+        <mxCell id="BAnDICIe1d7iCKYroEtQ-6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;Lambda: Alerts&lt;/span&gt;&lt;br style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;DynamoDB Stream trigger&lt;/span&gt;&lt;br style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;Publishes alert events&lt;/span&gt;" vertex="1">
+          <mxGeometry height="30" width="60" x="650" y="465" as="geometry" />
+        </mxCell>
+        <mxCell id="BAnDICIe1d7iCKYroEtQ-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;Lambda: Ingestion&lt;/span&gt;&lt;br style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;GET/POST /signals&lt;/span&gt;&lt;br style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;&lt;span style=&quot;color: rgb(51, 0, 0); text-wrap-mode: nowrap;&quot;&gt;Writes raw rows&lt;/span&gt;" vertex="1">
+          <mxGeometry height="30" width="60" x="710" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="BAnDICIe1d7iCKYroEtQ-9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;span style=&quot;text-wrap-mode: nowrap;&quot;&gt;Amazon SNS&lt;/span&gt;&lt;br style=&quot;text-wrap-mode: nowrap;&quot;&gt;&lt;span style=&quot;text-wrap-mode: nowrap;&quot;&gt;AlertsTopic&lt;/span&gt;" vertex="1">
+          <mxGeometry height="30" width="60" x="1150" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="BAnDICIe1d7iCKYroEtQ-10" parent="1" style="html=1;verticalLabelPosition=bottom;align=center;labelBackgroundColor=#ffffff;verticalAlign=top;strokeWidth=2;strokeColor=#0080F0;shadow=0;dashed=0;shape=mxgraph.ios7.icons.mail;" value="" vertex="1">
+          <mxGeometry height="68.37" width="150" x="1380" y="561.63" as="geometry" />
+        </mxCell>
+        <mxCell id="BAnDICIe1d7iCKYroEtQ-11" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="Subscribers&lt;br&gt;Email / Webhook / Ops channel" vertex="1">
+          <mxGeometry height="30" width="60" x="1415" y="670" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
