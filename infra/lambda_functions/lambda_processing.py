@@ -34,8 +34,15 @@ def _process_raw(row: dict) -> None:
         return
     payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
     vol = int(payload.get("volume") or 0)
-    signal = "BUY" if vol > 1000 else "HOLD"
-    score = Decimal("0.85") if signal == "BUY" else Decimal("0.55")
+    if vol >= 1000:
+        signal = "BUY"
+        score = Decimal("0.85")
+    elif vol <= 300:
+        signal = "SELL"
+        score = Decimal("0.20")
+    else:
+        signal = "HOLD"
+        score = Decimal("0.55")
     table.put_item(
         Item={
             "asset": str(asset),

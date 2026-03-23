@@ -1,9 +1,38 @@
-# AIMME
+#  AI Market Microstructure Engine (AIMME)
 
-Local-first scaffold for a real-time AI capital markets platform with both:
+AIMME is a product-oriented market intelligence platform for capital markets that ingests market-style events, persists them, transforms them into AI-assisted trading signals, and exposes the results through APIs and a web dashboard.
 
-- Docker-based local microservices
-- AWS CDK serverless deployment (CloudFormation)
+At a high level:
+
+- **Ingestion** accepts raw event payloads (`asset`, `price`, `volume`, timestamp).
+- **Storage** keeps event and signal data in DynamoDB (serverless path) or local stores (dev path).
+- **Processing** derives `BUY` / `SELL` / `HOLD` style signals with confidence/anomaly metadata.
+- **Alerting** publishes notable events to SNS.
+- **UI** visualizes the stream and supports manual signal ingestion for testing.
+
+This dual setup 
+1. Docker for local testing
+2. AWS serverless for vercel
+
+supports reliable development workflows and production-style deployment without changing core business flow.
+
+## Product Objectives
+
+- Deliver near real-time signal visibility for tracked assets.
+- Provide a consistent API contract for ingestion, querying, and alert workflows.
+- Support multiple deployment modes (local, cloud) with minimal operational drift.
+- Keep extensibility for richer strategy logic, model orchestration, and enterprise controls.
+
+## Business Value
+
+- Faster signal-to-insight cycle for market monitoring and decision support.
+- Clear operational boundaries across ingestion, processing, alerting, and presentation.
+- Portable architecture for internal tooling, client-facing dashboards, or managed services.
+- Revenue-ready packaging across multiple channels:
+  - **SaaS subscriptions** (tiered plans by assets covered, refresh frequency, and alert volume)
+  - **API usage billing** (per-request / per-signal pricing for partners and integrators)
+  - **Enterprise licensing** (private deployment, SSO/RBAC, SLA and support contracts)
+  - **Data/insight add-ons** (premium anomaly feeds, strategy packs, and historical analytics exports)
 
 ## Stack
 
@@ -211,8 +240,22 @@ If you get:
 it usually means the path/method/stage is wrong (not an auth token issue).
 Example: this stack exposes `POST /alert`, not `GET /alerts` by default.
 
-## Next steps
+## Roadmap
 
-- Wire ingestion/processor to Redis streams or pub/sub.
-- Add boto3 clients using `AWS_ENDPOINT_URL` against LocalStack for S3/SQS/etc.
-- Add a dedicated `GET /alerts` API route if frontend consumers need it server-side.
+### Now
+
+- Stabilize ingestion and processing contracts across local and serverless runtimes.
+- Expand alert retrieval with a dedicated server-side `GET /alerts` path where required.
+- Improve API-level observability (request correlation, structured logs, and error taxonomy).
+
+### Next
+
+- Add richer strategy logic and configurable thresholds per asset/profile.
+- Integrate managed event backbones (e.g., Redis Streams/Kinesis) for higher throughput.
+- Introduce stronger data quality checks and replay-safe processing semantics.
+
+### Later
+
+- Add role-based access controls and enterprise security posture hardening.
+- Provide multi-tenant support and per-tenant model/config isolation.
+- Extend product analytics with portfolio-level insight and explainability modules.
