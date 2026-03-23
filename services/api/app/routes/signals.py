@@ -68,6 +68,8 @@ async def create_signal(request: Request, body: SignalCreate) -> SignalRow:
         signal=body.signal,
         confidence=body.confidence,
         anomaly=body.anomaly,
+        price=body.price,
+        volume=body.volume,
     )
 
 

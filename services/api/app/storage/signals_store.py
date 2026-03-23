@@ -57,6 +57,8 @@ class MemorySignalStore(SignalStore):
                     "signal": record.signal,
                     "confidence": record.confidence,
                     "anomaly": record.anomaly,
+                    "price": record.price,
+                    "volume": record.volume,
                 }
             )
             return rid
@@ -108,10 +110,19 @@ class SQLiteSignalStore(SignalStore):
                 timestamp INTEGER NOT NULL,
                 signal TEXT NOT NULL,
                 confidence REAL NOT NULL,
-                anomaly INTEGER NOT NULL
+                anomaly INTEGER NOT NULL,
+                price REAL,
+                volume INTEGER
             )
             """
         )
+        # Backward-compatible migration for existing local DBs.
+        cur = await db.execute("PRAGMA table_info(signals)")
+        cols = {row[1] for row in await cur.fetchall()}
+        if "price" not in cols:
+            await db.execute("ALTER TABLE signals ADD COLUMN price REAL")
+        if "volume" not in cols:
+            await db.execute("ALTER TABLE signals ADD COLUMN volume INTEGER")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_signals_asset ON signals(asset)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_signals_ts ON signals(timestamp)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_signals_anomaly ON signals(anomaly)")
@@ -124,8 +135,8 @@ class SQLiteSignalStore(SignalStore):
                 await self._init_schema(db)
                 cur = await db.execute(
                     """
-                    INSERT INTO signals (asset, timestamp, signal, confidence, anomaly)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO signals (asset, timestamp, signal, confidence, anomaly, price, volume)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         record.asset,
@@ -133,6 +144,8 @@ class SQLiteSignalStore(SignalStore):
                         record.signal,
                         record.confidence,
                         1 if record.anomaly else 0,
+                        record.price,
+                        record.volume,
                     ),
                 )
                 await db.commit()
@@ -177,7 +190,7 @@ class SQLiteSignalStore(SignalStore):
         where, params = self._where(filters)
         count_sql = f"SELECT COUNT(*) AS c FROM signals WHERE {where}"
         list_sql = """
-            SELECT id, asset, timestamp, signal, confidence, anomaly
+            SELECT id, asset, timestamp, signal, confidence, anomaly, price, volume
             FROM signals WHERE {where}
             ORDER BY timestamp DESC
             LIMIT ? OFFSET ?
@@ -199,6 +212,8 @@ class SQLiteSignalStore(SignalStore):
                         signal=r["signal"],
                         confidence=r["confidence"],
                         anomaly=bool(r["anomaly"]),
+                        price=r["price"],
+                        volume=r["volume"],
                     )
                     for r in rows
                 ]

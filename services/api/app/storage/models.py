@@ -15,6 +15,8 @@ class SignalCreate(BaseModel):
     signal: Literal["BUY", "SELL", "HOLD"]
     confidence: float = Field(ge=0.0, le=1.0)
     anomaly: bool
+    price: float | None = None
+    volume: int | None = None
 
 
 class SignalRow(BaseModel):
@@ -26,6 +28,8 @@ class SignalRow(BaseModel):
     signal: Literal["BUY", "SELL", "HOLD"]
     confidence: float
     anomaly: bool
+    price: float | None = None
+    volume: int | None = None
 
 
 class SignalFilters(BaseModel):
