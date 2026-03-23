@@ -1,0 +1,2 @@
+# Optional for local-only FastAPI testing.
+# Keep empty in Lambda to avoid native pydantic_core runtime issues.

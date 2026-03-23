@@ -1,6 +1,9 @@
 # AIMME
 
-Local-first scaffold for a real-time AI capital markets platform.
+Local-first scaffold for a real-time AI capital markets platform with both:
+
+- Docker-based local microservices
+- AWS CDK serverless deployment (CloudFormation)
 
 ## Stack
 
@@ -10,6 +13,54 @@ Local-first scaffold for a real-time AI capital markets platform.
 - **Docker & Compose** — local runtime
 - **Redis** — local stream / pub-sub stand-in for Kinesis-style pipelines
 - **LocalStack** — AWS API mocking (S3, SQS, SNS, DynamoDB in compose)
+
+## Serverless (AWS CDK / CloudFormation)
+
+The `infra/` app deploys `AimmeServerlessStack` (CloudFormation) with:
+
+- **DynamoDB** table `SignalsTable`
+  - PK: `asset` (string)
+  - SK: `timestamp` (number)
+  - Billing: `PAY_PER_REQUEST`
+  - Streams: `NEW_IMAGE`
+- **SNS** topic `AlertsTopic`
+- **Lambdas** (Python 3.12, `infra/lambda_functions/`)
+  - `lambda_ingestion.handler` (`GET/POST /signals`)
+  - `lambda_processing.handler` (DynamoDB stream + optional `POST /process`)
+  - `lambda_alerts.handler` (DynamoDB stream + optional `POST /alert`)
+- **API Gateway REST API**
+  - `GET /signals`
+  - `POST /signals`
+  - `POST /process` (manual test helper)
+  - `POST /alert` (manual test helper)
+
+### Deploy serverless stack
+
+From `infra/`:
+
+```bash
+npx cdk deploy AimmeServerlessStack
+```
+
+Optional CDK context:
+
+```bash
+npx cdk deploy AimmeServerlessStack \
+  -c useGroq=true \
+  -c groqApiKey=YOUR_GROQ_KEY \
+  -c alertEmail=you@example.com
+```
+
+After deployment, read these CloudFormation outputs:
+
+- `RestApiUrl` (base URL)
+- `SignalsUrl`
+- `ProcessTestUrl`
+- `AlertTestUrl`
+- `SignalsTableName`
+- `AlertsTopicArn`
+
+`NEXT_PUBLIC_API_URL` for the frontend should be `RestApiUrl` with no trailing slash.
 
 ## Layout
 
@@ -73,8 +124,95 @@ docker compose up redis localstack
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Dummy creds for LocalStack |
 | `AWS_DEFAULT_REGION` | e.g. `us-east-1` |
 
+## API testing (serverless)
+
+### Base URL
+
+Set:
+
+```bash
+export API_BASE="https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com/prod"
+```
+
+Use the value from CloudFormation `RestApiUrl` (remove trailing slash if present).
+
+### curl examples
+
+Get signals:
+
+```bash
+curl -sS "$API_BASE/signals?limit=50" | jq
+```
+
+Ingest a raw event:
+
+```bash
+curl -sS -X POST "$API_BASE/signals" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "asset": "AAPL",
+    "payload": {
+      "price": 190.25,
+      "volume": 1500
+    }
+  }' | jq
+```
+
+Manual processing test:
+
+```bash
+curl -sS -X POST "$API_BASE/process" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "asset": "AAPL",
+    "timestamp": 1730000000000,
+    "type": "raw",
+    "payload": {
+      "price": 100,
+      "volume": 2000
+    }
+  }' | jq
+```
+
+Manual alert test:
+
+```bash
+curl -sS -X POST "$API_BASE/alert" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "asset": "AAPL",
+    "timestamp": 1730000000001,
+    "type": "signal",
+    "signal": "BUY",
+    "score": 0.95,
+    "anomaly": true
+  }' | jq
+```
+
+### Postman
+
+Import:
+
+- `infra/postman/AIMME_API.postman_collection.json`
+- `infra/postman/AIMME.local.postman_environment.json`
+
+Set `baseUrl` to your API base URL:
+
+`https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com/prod`
+
+### Common API Gateway pitfall
+
+If you get:
+
+```json
+{"message":"Missing Authentication Token"}
+```
+
+it usually means the path/method/stage is wrong (not an auth token issue).
+Example: this stack exposes `POST /alert`, not `GET /alerts` by default.
+
 ## Next steps
 
 - Wire ingestion/processor to Redis streams or pub/sub.
 - Add boto3 clients using `AWS_ENDPOINT_URL` against LocalStack for S3/SQS/etc.
-- Add CDK or Terraform under `infra/` when ready.
+- Add a dedicated `GET /alerts` API route if frontend consumers need it server-side.

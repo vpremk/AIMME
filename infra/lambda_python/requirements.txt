@@ -1,0 +1,4 @@
+# Lambda + local dev (boto3 is provided by AWS Lambda runtime)
+fastapi>=0.115.0
+mangum>=0.18.0
+uvicorn[standard]>=0.32.0
