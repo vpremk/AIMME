@@ -28,7 +28,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       REDIS_STREAM: market_data
       USE_MOCK: "true"
-      POLYGON_WSS_URL: wss://polygon-bor.publicnode.com
+      MASSIVE_WSS_URL: wss://ethereum-rpc.publicnode.com
       LOG_LEVEL: INFO
     depends_on:
       redis:

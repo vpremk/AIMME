@@ -1,5 +1,5 @@
 """
-Ingestion: mock or Polygon-driven ticks → Redis stream `market_data`.
+Ingestion: mock or Massive-driven ticks → Redis stream `market_data`.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import os
 import sys
 
 from mock_data import event_from_block_hash, mock_market_events
-from polygon_stream import subscribe_new_heads
+from massive_stream import subscribe_new_heads
 from redis_publisher import DEFAULT_STREAM, MarketDataPublisher
 
 logger = logging.getLogger(__name__)
@@ -44,8 +44,8 @@ async def _run_mock(publisher: MarketDataPublisher) -> None:
 
 async def _run_real(publisher: MarketDataPublisher) -> None:
     wss = os.environ.get(
-        "POLYGON_WSS_URL",
-        "wss://polygon-bor.publicnode.com",
+        "MASSIVE_WSS_URL",
+        "wss://ethereum-rpc.publicnode.com",
     )
 
     async def on_block(block_hash: str) -> None:
@@ -74,7 +74,7 @@ async def _async_main() -> None:
             logger.info("Mode=mock (USE_MOCK=true)")
             await _run_mock(publisher)
         else:
-            logger.info("Mode=real Polygon WebSocket (USE_MOCK=false)")
+            logger.info("Mode=real Massive WebSocket (USE_MOCK=false)")
             await _run_real(publisher)
     finally:
         await publisher.aclose()

@@ -5,10 +5,15 @@ from decimal import Decimal
 from typing import Any
 
 import boto3
+from botocore.exceptions import ClientError
+from firebase_admin_secret import load_firebase_admin_secret
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "SignalsTable")
+USER_MGMT_TABLE_NAME = os.environ.get("USER_MGMT_TABLE_NAME", "UserManagementTable")
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
+user_mgmt_table = dynamodb.Table(USER_MGMT_TABLE_NAME)
+_firebase_secret_checked = False
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -59,11 +64,25 @@ def _create_raw_item(data: dict[str, Any]) -> dict[str, Any]:
     asset = data.get("asset")
     if not asset:
         raise ValueError("asset required")
+    terms_accepted = bool(data.get("termsAccepted"))
+    if not terms_accepted:
+        raise ValueError("termsAccepted must be true")
+    user_id = str(data.get("userId") or "").strip()
+    user_name = str(data.get("userName") or "").strip()
+    if not user_id:
+        raise ValueError("userId required")
+    if not user_name:
+        raise ValueError("userName required")
+    _upsert_user_management(user_id, user_name, terms_accepted)
     item = {
         "asset": str(asset),
         "timestamp": int(data.get("timestamp") or time.time() * 1000),
         "type": "raw",
         "payload": data.get("payload") if isinstance(data.get("payload"), dict) else {},
+        "userId": user_id,
+        "userName": user_name,
+        "termsAccepted": terms_accepted,
+        "consentContext": "Hackathon data capture consent",
     }
     table.put_item(Item=_to_ddb(item))
     return item
@@ -78,6 +97,71 @@ def _to_ddb(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: _to_ddb(v) for k, v in value.items()}
     return value
+
+
+def _check_firebase_secret_once() -> None:
+    """
+    Best-effort startup validation for Firebase Admin secret wiring.
+    We only log status here; ingestion flow should remain available.
+    """
+    global _firebase_secret_checked
+    if _firebase_secret_checked:
+        return
+    _firebase_secret_checked = True
+    try:
+        secret = load_firebase_admin_secret()
+        print(
+            "firebase_secret_check=ok",
+            json.dumps(
+                {
+                    "projectId": secret.get("projectId"),
+                    "clientEmail": secret.get("clientEmail"),
+                }
+            ),
+        )
+    except Exception as exc:
+        print(f"firebase_secret_check=error reason={exc}")
+
+
+def _upsert_user_management(user_id: str, user_name: str, terms_accepted: bool) -> None:
+    now_ms = int(time.time() * 1000)
+    try:
+        user_mgmt_table.put_item(
+            Item={
+                "userId": user_id,
+                "name": user_name,
+                "role": "trader",
+                "termsAccepted": terms_accepted,
+                "loginCount": 0,
+                "createdAt": now_ms,
+                "updatedAt": now_ms,
+            },
+            ConditionExpression="attribute_not_exists(userId)",
+        )
+        print(f"user_mgmt_created=true userId={user_id} role=trader")
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+        user_mgmt_table.update_item(
+            Key={"userId": user_id},
+            UpdateExpression=(
+                "SET #name = :name, #updatedAt = :updatedAt, "
+                "#termsAccepted = :termsAccepted, #lastSeenAt = :lastSeenAt"
+            ),
+            ExpressionAttributeNames={
+                "#name": "name",
+                "#updatedAt": "updatedAt",
+                "#termsAccepted": "termsAccepted",
+                "#lastSeenAt": "lastSeenAt",
+            },
+            ExpressionAttributeValues={
+                ":name": user_name,
+                ":updatedAt": now_ms,
+                ":termsAccepted": terms_accepted,
+                ":lastSeenAt": now_ms,
+            },
+        )
+        print(f"user_mgmt_created=false userId={user_id}")
 
 
 if FastAPI is not None:
@@ -104,6 +188,7 @@ else:
 
 
 def handler(event, context):
+    _check_firebase_secret_once()
     rid = _request_id(event, context)
     if _mangum is not None and (
         "requestContext" in event or "httpMethod" in event or event.get("version") in ("1.0", "2.0")

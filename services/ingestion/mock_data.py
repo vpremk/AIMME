@@ -1,4 +1,4 @@
-"""Random Polygon-style market events for local simulation."""
+"""Random Massive-style market events for local simulation."""
 
 from __future__ import annotations
 

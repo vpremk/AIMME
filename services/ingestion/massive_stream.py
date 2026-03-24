@@ -1,4 +1,4 @@
-"""Polygon JSON-RPC WebSocket: newHeads subscription with reconnect."""
+"""Massive JSON-RPC WebSocket: newHeads subscription with reconnect."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ async def subscribe_new_heads(
     while True:
         ws: Any = None
         try:
-            logger.info("Connecting Polygon WebSocket: %s", wss_url)
+            logger.info("Connecting Massive WebSocket: %s", wss_url)
             ws = await websockets.connect(
                 wss_url,
                 ping_interval=20,
@@ -81,7 +81,7 @@ async def subscribe_new_heads(
             raise
         except Exception as exc:  # noqa: BLE001 — reconnect path
             logger.warning(
-                "Polygon stream error (%s), reconnecting in %.1fs",
+                "Massive stream error (%s), reconnecting in %.1fs",
                 exc,
                 min(backoff, max_backoff_s),
             )

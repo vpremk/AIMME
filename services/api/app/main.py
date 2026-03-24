@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routes.admin import router as admin_router
 from app.routes.signals import router as signals_router
 from app.storage import create_signal_store
 
@@ -24,6 +25,7 @@ app = FastAPI(
 )
 
 app.include_router(signals_router)
+app.include_router(admin_router)
 
 # Any port on loopback (covers Next.js on 3000/3001, etc.). For LAN UI, set CORS_ALLOW_LAN=1.
 _cors_lan = os.environ.get("CORS_ALLOW_LAN", "").lower() in ("1", "true", "yes")

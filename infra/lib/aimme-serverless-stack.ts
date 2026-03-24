@@ -10,6 +10,7 @@ import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as path from 'path';
 
@@ -51,6 +52,38 @@ export class AimmeServerlessStack extends cdk.Stack {
     const alertEmail = props?.alertEmail;
     const requireApiKey = this.node.tryGetContext('requireApiKey') === true;
     const wafRateLimit = Number(this.node.tryGetContext('wafRateLimit') ?? 2000);
+    const firebaseSecretArn = this.node.tryGetContext('firebaseAdminSecretArn');
+    const firebaseSecretName = this.node.tryGetContext('firebaseAdminSecretName');
+
+    // --- Firebase Admin secret: support complete ARN, partial ARN, or secret name ---
+    const firebaseAdminSecret = firebaseSecretArn
+      ? /-[A-Za-z0-9]{6}$/.test(String(firebaseSecretArn))
+        ? secretsmanager.Secret.fromSecretCompleteArn(
+            this,
+            'FirebaseAdminSecretImported',
+            String(firebaseSecretArn),
+          )
+        : secretsmanager.Secret.fromSecretPartialArn(
+            this,
+            'FirebaseAdminSecretImported',
+            String(firebaseSecretArn),
+          )
+      : firebaseSecretName
+        ? secretsmanager.Secret.fromSecretNameV2(
+            this,
+            'FirebaseAdminSecretImported',
+            String(firebaseSecretName),
+          )
+        : new secretsmanager.Secret(this, 'FirebaseAdminSecret', {
+            secretName: 'aimme/firebase/admin',
+            description:
+              'Firebase Admin credentials JSON {projectId,clientEmail,privateKey} for AIMME services',
+            secretObjectValue: {
+              projectId: cdk.SecretValue.unsafePlainText(''),
+              clientEmail: cdk.SecretValue.unsafePlainText(''),
+              privateKey: cdk.SecretValue.unsafePlainText(''),
+            },
+          });
 
     // --- SNS: alerts (optional email demo subscription) ---
     const alertsTopic = new sns.Topic(this, 'AlertsTopic', {
@@ -71,6 +104,12 @@ export class AimmeServerlessStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       stream: dynamodb.StreamViewType.NEW_IMAGE,
     });
+    const userManagementTable = new dynamodb.Table(this, 'UserManagementTable', {
+      tableName: 'UserManagementTable',
+      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     const code = pythonCode();
 
@@ -89,9 +128,13 @@ export class AimmeServerlessStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(29),
       environment: {
         TABLE_NAME: signalsTable.tableName,
+        USER_MGMT_TABLE_NAME: userManagementTable.tableName,
+        FIREBASE_SECRET_ARN: firebaseAdminSecret.secretArn,
       },
     });
     signalsTable.grantReadWriteData(ingestionFn);
+    userManagementTable.grantReadWriteData(ingestionFn);
+    firebaseAdminSecret.grantRead(ingestionFn);
 
     // --- Processing: DynamoDB stream → signal rows; optional POST /process for tests ---
     const processingFn = new lambda.Function(this, 'ProcessingLambda', {
@@ -103,10 +146,12 @@ export class AimmeServerlessStack extends cdk.Stack {
         TABLE_NAME: signalsTable.tableName,
         USE_GROQ: useGroq ? 'true' : 'false',
         GROQ_API_KEY: groqApiKey,
+        FIREBASE_SECRET_ARN: firebaseAdminSecret.secretArn,
       },
     });
     signalsTable.grantStreamRead(processingFn);
     signalsTable.grantWriteData(processingFn);
+    firebaseAdminSecret.grantRead(processingFn);
 
     processingFn.addEventSource(
       new DynamoEventSource(signalsTable, {
@@ -125,10 +170,12 @@ export class AimmeServerlessStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       environment: {
         SNS_TOPIC_ARN: alertsTopic.topicArn,
+        FIREBASE_SECRET_ARN: firebaseAdminSecret.secretArn,
       },
     });
     signalsTable.grantStreamRead(alertsFn);
     alertsTopic.grantPublish(alertsFn);
+    firebaseAdminSecret.grantRead(alertsFn);
 
     alertsFn.addEventSource(
       new DynamoEventSource(signalsTable, {
@@ -138,6 +185,20 @@ export class AimmeServerlessStack extends cdk.Stack {
         retryAttempts: 3,
       })
     );
+
+    // --- Admin: user management + ops snapshots ---
+    const adminFn = new lambda.Function(this, 'AdminLambda', {
+      ...lambdaDefaults,
+      handler: 'lambda_admin.handler',
+      description: 'User management and ops stats APIs',
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        TABLE_NAME: signalsTable.tableName,
+        USER_MGMT_TABLE_NAME: userManagementTable.tableName,
+      },
+    });
+    signalsTable.grantReadData(adminFn);
+    userManagementTable.grantReadWriteData(adminFn);
 
     // --- API Gateway (REST): minimal routes, free-tier friendly throttles ---
     const api = new apigateway.RestApi(this, 'AimmeRestApi', {
@@ -167,6 +228,23 @@ export class AimmeServerlessStack extends cdk.Stack {
 
     const alertRes = api.root.addResource('alert');
     alertRes.addMethod('POST', new apigateway.LambdaIntegration(alertsFn), {
+      apiKeyRequired: requireApiKey,
+    });
+
+    const adminRes = api.root.addResource('admin');
+    const adminUsersRes = adminRes.addResource('users');
+    const adminUsersLoginRes = adminUsersRes.addResource('login');
+    adminUsersLoginRes.addMethod('POST', new apigateway.LambdaIntegration(adminFn), {
+      apiKeyRequired: requireApiKey,
+    });
+    adminUsersRes.addMethod('GET', new apigateway.LambdaIntegration(adminFn), {
+      apiKeyRequired: requireApiKey,
+    });
+    adminUsersRes.addMethod('POST', new apigateway.LambdaIntegration(adminFn), {
+      apiKeyRequired: requireApiKey,
+    });
+    const adminOpsRes = adminRes.addResource('ops');
+    adminOpsRes.addMethod('GET', new apigateway.LambdaIntegration(adminFn), {
       apiKeyRequired: requireApiKey,
     });
 
@@ -270,11 +348,25 @@ export class AimmeServerlessStack extends cdk.Stack {
       description: 'POST JSON signal-shaped body for SNS test',
       value: api.urlForPath('/alert'),
     });
+    new cdk.CfnOutput(this, 'AdminUsersUrl', {
+      description: 'GET/POST admin users',
+      value: api.urlForPath('/admin/users'),
+    });
+    new cdk.CfnOutput(this, 'AdminOpsUrl', {
+      description: 'GET ops snapshots',
+      value: api.urlForPath('/admin/ops'),
+    });
     new cdk.CfnOutput(this, 'SignalsTableName', {
       value: signalsTable.tableName,
     });
     new cdk.CfnOutput(this, 'AlertsTopicArn', {
       value: alertsTopic.topicArn,
+    });
+    new cdk.CfnOutput(this, 'UserManagementTableName', {
+      value: userManagementTable.tableName,
+    });
+    new cdk.CfnOutput(this, 'FirebaseAdminSecretArn', {
+      value: firebaseAdminSecret.secretArn,
     });
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Scheduled ingestion: mock Polygon-style ticks → DynamoDB as `raw` records.
+ * Scheduled ingestion: mock Massive-style ticks → DynamoDB as `raw` records.
  * Trigger: EventBridge rate (see stack).
  */
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -23,7 +23,7 @@ export const handler = async (): Promise<void> => {
         timestamp,
         type: 'raw',
         payload: {
-          source: 'mock-polygon',
+          source: 'mock-massive',
           price: Number(price.toFixed(4)),
           volume: Math.floor(Math.random() * 1_000_000),
         },

@@ -15,6 +15,7 @@
     ]
   },
   "context": {
+    "firebaseAdminSecretArn": "arn:aws:kms:us-east-1:988745870915:key/d99e9ede-9fb7-4864-8da3-a5d49075d69b",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": ["aws", "aws-cn"]

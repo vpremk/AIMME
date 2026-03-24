@@ -9,6 +9,7 @@ At a high level:
 - **Processing** derives `BUY` / `SELL` / `HOLD` style signals with confidence/anomaly metadata.
 - **Alerting** publishes notable events to SNS.
 - **UI** visualizes the stream and supports manual signal ingestion for testing.
+- **Market data enrichment** uses Massive(Previously Massive.io) aggregates for real-time candlestick charts in the web dashboard.
 
 This dual setup 
 1. Docker for local testing
@@ -41,6 +42,7 @@ supports reliable development workflows and production-style deployment without 
 - **Docker & Compose** — local runtime
 - **Redis** — local stream / pub-sub stand-in for Kinesis-style pipelines
 - **LocalStack** — AWS API mocking (S3, SQS, SNS, DynamoDB in compose)
+- **Massive(Previously Massive.io)** — real-time market data aggregates (OHLCV) for dashboard candlestick visualization
 
 ## Serverless (AWS CDK / CloudFormation)
 
@@ -151,6 +153,23 @@ docker compose up redis localstack
 | `AWS_ENDPOINT_URL` | Point boto3/SDK at LocalStack |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Dummy creds for LocalStack |
 | `AWS_DEFAULT_REGION` | e.g. `us-east-1` |
+
+## Web market data Massive
+
+The Next.js web app exposes an authenticated same-origin route:
+
+- `GET /api/market/candles`
+
+This route calls Massive aggregates and returns normalized candle data used by the dashboard candlestick graph.
+
+Required server-side web environment variable:
+
+- `MARKET_DATA_API_KEY` — Massive API key (do not use `NEXT_PUBLIC_` prefix)
+
+Recommended web environment setup:
+
+- `AIMME_API_BASE_URL` — API Gateway base URL for server-side proxy routes in Vercel
+- `NEXT_PUBLIC_API_URL` — local dev API URL (for example `http://localhost:8000`)
 
 ## API testing (serverless)
 
