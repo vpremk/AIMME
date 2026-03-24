@@ -9,13 +9,10 @@ At a high level:
 - **Processing** derives `BUY` / `SELL` / `HOLD` style signals with confidence/anomaly metadata.
 - **Alerting** publishes notable events to SNS.
 - **UI** visualizes the stream and supports manual signal ingestion for testing.
-- **Market data enrichment** uses Massive(Previously Massive.io) aggregates for real-time candlestick charts in the web dashboard.
+- **Market data enrichment** uses [Massive](https://massive.com/) (formerly *Polygon.io*, a market-data vendor—**not** the Polygon blockchain) for OHLC aggregates in dashboard candlestick charts.
+- **On-chain attestations** use [Polygon PoS](https://polygon.technology/polygon-pos) (via public RPC and **Hardhat** on **Amoy** testnet today) so operators can **imprint** high-severity hazard metadata in `HazardRegistry.sol`, verified on [Polygonscan](https://polygonscan.com/).
 
-This dual setup 
-1. Docker for local testing
-2. AWS serverless for vercel
-
-supports reliable development workflows and production-style deployment without changing core business flow.
+**Deployment modes:** Docker for local testing, and AWS serverless for the API plus **Vercel** for the Next.js app—without changing the core ingest → signal → alert flow. Polygon writes are issued from the **web** runtime (`ethers`) against your chosen RPC; AIMME does not run a Polygon validator or bor node.
 
 ## Product Objectives
 
@@ -23,11 +20,13 @@ supports reliable development workflows and production-style deployment without 
 - Provide a consistent API contract for ingestion, querying, and alert workflows.
 - Support multiple deployment modes (local, cloud) with minimal operational drift.
 - Keep extensibility for richer strategy logic, model orchestration, and enterprise controls.
+- Offer an **optional trust anchor**: immutable, timestamped hazard records on **Polygon** separate from the AWS data plane—useful for audit narratives and partner-facing proof of “what AIMME flagged and when.”
 
 ## Business Value
 
 - Faster signal-to-insight cycle for market monitoring and decision support.
 - Clear operational boundaries across ingestion, processing, alerting, and presentation.
+- **Verifiability:** Polygon on-chain imprints (testnet or mainnet) let compliance and desk leads cross-check alert severity against an explorer-backed transaction hash, without replacing AIMME’s primary AWS/DynamoDB source of truth.
 - Revenue-ready packaging across multiple channels:
   - **SaaS subscriptions** tiered plans by assets covered, refresh frequency, and alert volume
   - **API usage billing** (per-request / per-signal pricing for partners and integrators)
@@ -42,7 +41,12 @@ supports reliable development workflows and production-style deployment without 
 - **Docker & Compose** — local runtime
 - **Redis** — local stream / pub-sub stand-in for Kinesis-style pipelines
 - **LocalStack** — AWS API mocking (S3, SQS, SNS, DynamoDB in compose)
-- **Massive(Previously Massive.io)** — real-time market data aggregates (OHLCV) for dashboard candlestick visualization
+- **Massive** (formerly *Polygon.io*) — **market data API** for OHLC aggregates in charts (distinct from the Polygon chain below).
+- **Polygon PoS & tooling ([polygon.technology](https://polygon.technology/))**
+  - **Solidity ^0.8.20** — `HazardRegistry` smart contract (`contracts/`)
+  - **Hardhat** — compile/deploy to **Amoy** (chain id **80002**) or **Polygon PoS mainnet** (chain id **137**) using an RPC provider (e.g. Alchemy) and a funded signer
+  - **ethers.js v6** (Next.js server routes) — submit `logHazard` transactions; gas paid in **POL** (legacy “MATIC”) on the selected Polygon network
+  - **Polygonscan / Amoy Polygonscan** — optional API key for richer tx status in the dashboard
 
 ## Serverless (AWS CDK / CloudFormation)
 
@@ -92,6 +96,8 @@ After deployment, read these CloudFormation outputs:
 
 `NEXT_PUBLIC_API_URL` for the frontend should be `RestApiUrl` with no trailing slash.
 
+**Polygon note (serverless):** Ingest, processing, and SNS alerts stay on AWS. **Writing to Polygon** is handled only in the **`web`** app (server-side API routes + `ethers`). Configure `POLYGON_*` and `HAZARD_REGISTRY_ADDRESS` on Vercel (or `web/.env.local`); the Lambdas do not need chain credentials for the current design.
+
 ## Layout
 
 ```
@@ -102,7 +108,9 @@ aimme/
     ai_service/   # AI workloads
     api/          # FastAPI gateway (runnable)
   shared/         # shared Python package
-  infra/          # placeholder for AWS CDK / IaC later
+  contracts/      # Solidity HazardRegistry + Hardhat (Polygon PoS / Amoy)
+  web/            # Next.js UI + /api proxy + Polygon imprint routes
+  infra/          # AWS CDK serverless stack
   docker-compose.yml
 ```
 
@@ -110,6 +118,7 @@ aimme/
 
 - Docker Engine and Docker Compose v2
 - (Optional) Python 3.11 for running the API outside Docker
+- (Optional) **Node.js 18+** for `web/` (Next.js) and `contracts/` (Hardhat) when building or deploying **`HazardRegistry`** to Polygon
 
 ## Run locally (Docker)
 
@@ -119,6 +128,7 @@ From the repository root:
 docker compose up --build
 ```
 
+- **Polygon imprints** are not part of Compose by default: run `web` (`npm run dev` in `web/`) with `POLYGON_RPC_URL`, `POLYGON_PRIVATE_KEY`, and `HAZARD_REGISTRY_ADDRESS` if you want to test **Imprint on Polygon** against Amoy or mainnet.
 - API: [http://localhost:8000](http://localhost:8000) — OpenAPI docs at [http://localhost:8000/docs](http://localhost:8000/docs)
 - Redis (from host): `localhost:6380` → container `6379` (avoids colliding with a system Redis on `6379`)
 - LocalStack: `http://localhost:4566` (set `AWS_ENDPOINT_URL` / boto3 `endpoint_url` to this in app code)
@@ -145,6 +155,8 @@ Start Redis (and optionally LocalStack) with Compose in another terminal:
 docker compose up redis localstack
 ```
 
+**Polygon:** This Python API path does not broadcast transactions; on-chain imprints run from **`web`** when you call `/api/hazards/*`.
+
 ## Environment variables (API container)
 
 | Variable | Purpose |
@@ -154,13 +166,17 @@ docker compose up redis localstack
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Dummy creds for LocalStack |
 | `AWS_DEFAULT_REGION` | e.g. `us-east-1` |
 
-## Web market data Massive
+**Polygon:** These API service variables are unrelated to the blockchain. **Polygon PoS** RPC, deployer/imprint keys, and `HAZARD_REGISTRY_ADDRESS` are configured on the **Next.js** app only (`web/.env.local` or Vercel).
+
+## Web market data (Massive)
 
 The Next.js web app exposes an authenticated same-origin route:
 
 - `GET /api/market/candles`
 
-This route calls Massive aggregates and returns normalized candle data used by the dashboard candlestick graph.
+This route calls **Massive** REST aggregates and returns normalized candle data for the dashboard candlestick graph.
+
+**Not Polygon chain data:** Massive is a **market-data provider** (historically branded *Polygon.io*). It does **not** read your on-chain `HazardRegistry` or Polygon node state. **Polygon PoS** interaction for hazards is only via **`POST /api/hazards/log-onchain`** and the env vars in [On-chain hazard logging (Polygon)](#on-chain-hazard-logging-polygon).
 
 Required server-side web environment variable:
 
@@ -170,6 +186,46 @@ Recommended web environment setup:
 
 - `AIMME_API_BASE_URL` — API Gateway base URL for server-side proxy routes in Vercel
 - `NEXT_PUBLIC_API_URL` — local dev API URL (for example `http://localhost:8000`)
+
+## On-chain hazard logging (Polygon)
+
+AIMME supports immutable hazard writes on Polygon via `contracts/HazardRegistry.sol` and web API routes.
+
+- `POST /api/hazards/log-onchain` logs high-risk hazard events (asset, riskLevel, timestamp, AI confidence)
+- `GET /api/hazards/tx-status?key=...` returns on-chain tx state and explorer status
+- Alert flow remains non-blocking: failed on-chain writes do not block real-time alert delivery
+
+Required server env vars for on-chain writes:
+
+- `POLYGON_RPC_URL`
+- `POLYGON_PRIVATE_KEY`
+- `HAZARD_REGISTRY_ADDRESS`
+- `POLYGON_CHAIN_ID` (default `80002` for Amoy)
+
+Optional:
+
+- `POLYGONSCAN_API_KEY` (explorer status lookup)
+
+Deploy `HazardRegistry` to Polygon Amoy (Hardhat):
+
+```bash
+cd contracts
+cp .env.example .env
+# set POLYGON_AMOY_RPC_URL and DEPLOYER_PRIVATE_KEY
+npm install
+npm run compile
+npm run deploy:amoy
+```
+
+The deploy script auto-prints:
+
+```bash
+HAZARD_REGISTRY_ADDRESS=0x...
+```
+
+Use that value in `web` env as `HAZARD_REGISTRY_ADDRESS`.
+
+**Mainnet checklist:** Fund the signer with **POL** on Polygon PoS, audit the contract, and treat the imprint wallet as a rate-limited ops key—imprints are **public on-chain** (no secrets in calldata beyond what you pass to `logHazard`).
 
 ## API testing (serverless)
 
@@ -258,6 +314,8 @@ If you get:
 it usually means the path/method/stage is wrong (not an auth token issue).
 Example: this stack exposes `POST /alert`, not `GET /alerts` by default.
 
+**Polygon:** Serverless `curl` examples above do **not** trigger on-chain imprints; use the **Next.js** deployment with `POST /api/hazards/log-onchain` (authenticated) or extend Lambdas if you need AWS-initiated Polygon txs.
+
 ## Roadmap
 
 ### Now
@@ -265,6 +323,7 @@ Example: this stack exposes `POST /alert`, not `GET /alerts` by default.
 - Stabilize ingestion and processing contracts across local and serverless runtimes.
 - Expand alert retrieval with a dedicated server-side `GET /alerts` path where required.
 - Improve API-level observability (request correlation, structured logs, and error taxonomy).
+- Document and test **Polygon Amoy** imprint flows end-to-end (funded signer, contract address, explorer links).
 
 ### Next
 - Authentication, Authorization, RBAC for Monitoring, Trading, Admin roles
@@ -272,9 +331,11 @@ Example: this stack exposes `POST /alert`, not `GET /alerts` by default.
 - Add richer strategy logic and configurable thresholds per asset/profile.
 - Integrate managed event backbones (e.g., Redis Streams/Kinesis) for higher throughput.
 - Introduce stronger data quality checks and replay-safe processing semantics.
+- **Polygon:** durable server-side dedupe/storage for imprint keys (e.g. DynamoDB) across Vercel instances; optional **Polygon PoS mainnet** default; role-gating who may trigger gas spend.
 
 ### Later
 
 - Add role-based access controls and enterprise security posture hardening.
 - Provide multi-tenant support and per-tenant model/config isolation.
 - Extend product analytics with portfolio-level insight and explainability modules.
+- **Polygon:** explore **Polygon zkEVM** or formal verification flows if proofs/rollups become a product requirement (current code targets **Polygon PoS** EVM only).
