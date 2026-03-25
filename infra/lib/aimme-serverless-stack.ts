@@ -186,9 +186,12 @@ export class AimmeServerlessStack extends cdk.Stack {
       environment: {
         SNS_TOPIC_ARN: alertsTopic.topicArn,
         FIREBASE_SECRET_ARN: firebaseAdminSecret.secretArn,
+        TABLE_NAME: signalsTable.tableName,
+        ORG_LEDGER_INDEX: 'OrgLedgerIndex',
       },
     });
     signalsTable.grantStreamRead(alertsFn);
+    signalsTable.grantReadWriteData(alertsFn);
     alertsTopic.grantPublish(alertsFn);
     firebaseAdminSecret.grantRead(alertsFn);
 
