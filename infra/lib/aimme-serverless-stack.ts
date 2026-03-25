@@ -111,6 +111,15 @@ export class AimmeServerlessStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    // --- DynamoDB: org-level UI branding (web reads via ORG_BRANDING_TABLE_NAME) ---
+    // PK: orgId (string). Optional attributes: displayName, logoUrl, primaryColor, accentColor, badgeText.
+    const orgBrandingTable = new dynamodb.Table(this, 'OrgBrandingTable', {
+      tableName: 'OrgBrandingTable',
+      partitionKey: { name: 'orgId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const code = pythonCode();
 
     const lambdaDefaults = {
@@ -364,6 +373,10 @@ export class AimmeServerlessStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, 'UserManagementTableName', {
       value: userManagementTable.tableName,
+    });
+    new cdk.CfnOutput(this, 'OrgBrandingTableName', {
+      description: 'Set this value as ORG_BRANDING_TABLE_NAME in Vercel',
+      value: orgBrandingTable.tableName,
     });
     new cdk.CfnOutput(this, 'FirebaseAdminSecretArn', {
       value: firebaseAdminSecret.secretArn,

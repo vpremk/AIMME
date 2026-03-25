@@ -9,6 +9,10 @@
     {
       "key": "baseUrl",
       "value": "https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com/prod"
+    },
+    {
+      "key": "webBaseUrl",
+      "value": "https://web-one-rho-28.vercel.app"
     }
   ],
   "item": [
@@ -88,6 +92,21 @@
         "description": "Not implemented in default stack — may 403/404."
       },
       "response": []
+    },
+    {
+      "name": "Web (Next.js)",
+      "item": [
+        {
+          "name": "GET /api/org/branding",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webBaseUrl}}/api/org/branding",
+            "description": "Returns org branding for the current Auth0 enterprise session (orgId/displayName/logo/colors)."
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }
