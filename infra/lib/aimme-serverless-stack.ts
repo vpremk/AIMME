@@ -104,6 +104,12 @@ export class AimmeServerlessStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       stream: dynamodb.StreamViewType.NEW_IMAGE,
     });
+    signalsTable.addGlobalSecondaryIndex({
+      indexName: 'OrgLedgerIndex',
+      partitionKey: { name: 'orgId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'orgLedgerSk', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
     const userManagementTable = new dynamodb.Table(this, 'UserManagementTable', {
       tableName: 'UserManagementTable',
       partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },

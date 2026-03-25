@@ -1,1 +1,2 @@
 redis[hiredis]>=5.0.0
+web3>=6.0.0
