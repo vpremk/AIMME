@@ -60,10 +60,19 @@ def _inject_request_id(resp: dict[str, Any], request_id: str) -> dict[str, Any]:
     return resp
 
 
+def _org_ledger_sk(timestamp_ms: int, asset: str) -> str:
+    """Inverted time prefix so GSI sort ascending lists newest activity first per org."""
+    pad = 10**18
+    return f"{pad - int(timestamp_ms)}#{asset}"
+
+
 def _create_raw_item(data: dict[str, Any]) -> dict[str, Any]:
     asset = data.get("asset")
     if not asset:
         raise ValueError("asset required")
+    org_id = str(data.get("orgId") or "").strip()
+    if not org_id:
+        raise ValueError("orgId required")
     terms_accepted = bool(data.get("termsAccepted"))
     if not terms_accepted:
         raise ValueError("termsAccepted must be true")
@@ -74,10 +83,14 @@ def _create_raw_item(data: dict[str, Any]) -> dict[str, Any]:
     if not user_name:
         raise ValueError("userName required")
     _upsert_user_management(user_id, user_name, terms_accepted)
+    ts = int(data.get("timestamp") or time.time() * 1000)
+    asset_s = str(asset)
     item = {
-        "asset": str(asset),
-        "timestamp": int(data.get("timestamp") or time.time() * 1000),
+        "asset": asset_s,
+        "timestamp": ts,
         "type": "raw",
+        "orgId": org_id,
+        "orgLedgerSk": _org_ledger_sk(ts, asset_s),
         "payload": data.get("payload") if isinstance(data.get("payload"), dict) else {},
         "userId": user_id,
         "userName": user_name,
@@ -164,13 +177,61 @@ def _upsert_user_management(user_id: str, user_name: str, terms_accepted: bool) 
         print(f"user_mgmt_created=false userId={user_id}")
 
 
+def _get_signals_items(limit: int, org_id: str | None) -> dict[str, Any]:
+    lim = max(1, min(int(limit), 500))
+    oid = (org_id or "").strip() or "__public__"
+
+    if oid == "__public__":
+        collected: list[dict[str, Any]] = []
+        start = None
+        for _ in range(15):
+            kw: dict[str, Any] = {
+                "Limit": min(1000, lim * 12),
+                "FilterExpression": "attribute_not_exists(orgId) OR orgId = :p",
+                "ExpressionAttributeValues": {":p": "__public__"},
+            }
+            if start:
+                kw["ExclusiveStartKey"] = start
+            res = table.scan(**kw)
+            for it in res.get("Items") or []:
+                collected.append(it)
+                if len(collected) >= lim:
+                    return {"items": collected[:lim], "count": len(collected[:lim])}
+            start = res.get("LastEvaluatedKey")
+            if not start:
+                break
+        return {"items": collected[:lim], "count": len(collected[:lim])}
+
+    collected_q: list[dict[str, Any]] = []
+    start_q = None
+    while len(collected_q) < lim:
+        kwq: dict[str, Any] = {
+            "IndexName": "OrgLedgerIndex",
+            "KeyConditionExpression": "orgId = :o",
+            "ExpressionAttributeValues": {":o": oid},
+            "Limit": lim - len(collected_q),
+            "ScanIndexForward": True,
+        }
+        if start_q:
+            kwq["ExclusiveStartKey"] = start_q
+        res = table.query(**kwq)
+        for it in res.get("Items") or []:
+            collected_q.append(it)
+            if len(collected_q) >= lim:
+                return {"items": collected_q[:lim], "count": len(collected_q[:lim])}
+        start_q = res.get("LastEvaluatedKey")
+        if not start_q:
+            break
+    return {"items": collected_q[:lim], "count": len(collected_q[:lim])}
+
+
 if FastAPI is not None:
     app = FastAPI(title="AIMME Ingestion")
 
     @app.get("/signals")
-    async def get_signals(limit: int = 50):
-        res = table.scan(Limit=max(1, min(int(limit), 500)))
-        return {"items": res.get("Items", []), "count": res.get("Count", 0)}
+    async def get_signals(limit: int = 50, orgId: str | None = None):
+        out = _get_signals_items(limit, orgId)
+        return out
 
     @app.post("/signals")
     async def post_signals(request: Request):
@@ -206,8 +267,9 @@ def handler(event, context):
                 limit = int(qs["limit"])
             except Exception:
                 pass
-        res = table.scan(Limit=max(1, min(limit, 500)))
-        return _as_http(200, {"items": res.get("Items", []), "count": res.get("Count", 0), "requestId": rid})
+        org_q = (qs.get("orgId") or qs.get("org_id") or "").strip() or None
+        out = _get_signals_items(limit, org_q)
+        return _as_http(200, {**out, "requestId": rid})
 
     try:
         data = json.loads(event.get("body") or "{}")
