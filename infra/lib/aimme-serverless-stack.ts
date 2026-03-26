@@ -104,9 +104,24 @@ export class AimmeServerlessStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       stream: dynamodb.StreamViewType.NEW_IMAGE,
     });
+    signalsTable.addGlobalSecondaryIndex({
+      indexName: 'OrgLedgerIndex',
+      partitionKey: { name: 'orgId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'orgLedgerSk', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
     const userManagementTable = new dynamodb.Table(this, 'UserManagementTable', {
       tableName: 'UserManagementTable',
       partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // --- DynamoDB: org-level UI branding (web reads via ORG_BRANDING_TABLE_NAME) ---
+    // PK: orgId (string). Optional attributes: displayName, logoUrl, primaryColor, accentColor, badgeText.
+    const orgBrandingTable = new dynamodb.Table(this, 'OrgBrandingTable', {
+      tableName: 'OrgBrandingTable',
+      partitionKey: { name: 'orgId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -171,9 +186,12 @@ export class AimmeServerlessStack extends cdk.Stack {
       environment: {
         SNS_TOPIC_ARN: alertsTopic.topicArn,
         FIREBASE_SECRET_ARN: firebaseAdminSecret.secretArn,
+        TABLE_NAME: signalsTable.tableName,
+        ORG_LEDGER_INDEX: 'OrgLedgerIndex',
       },
     });
     signalsTable.grantStreamRead(alertsFn);
+    signalsTable.grantReadWriteData(alertsFn);
     alertsTopic.grantPublish(alertsFn);
     firebaseAdminSecret.grantRead(alertsFn);
 
@@ -364,6 +382,10 @@ export class AimmeServerlessStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, 'UserManagementTableName', {
       value: userManagementTable.tableName,
+    });
+    new cdk.CfnOutput(this, 'OrgBrandingTableName', {
+      description: 'Set this value as ORG_BRANDING_TABLE_NAME in Vercel',
+      value: orgBrandingTable.tableName,
     });
     new cdk.CfnOutput(this, 'FirebaseAdminSecretArn', {
       value: firebaseAdminSecret.secretArn,

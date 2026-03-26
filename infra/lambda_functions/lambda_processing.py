@@ -24,6 +24,11 @@ table = dynamodb.Table(TABLE_NAME)
 _deser = TypeDeserializer()
 
 
+def _org_ledger_sk(timestamp_ms: int, asset: str) -> str:
+    pad = 10**18
+    return f"{pad - int(timestamp_ms)}#{asset}"
+
+
 def _from_stream(new_image: dict) -> dict:
     return {k: _deser.deserialize(v) for k, v in new_image.items()}
 
@@ -45,19 +50,26 @@ def _process_raw(row: dict) -> None:
     else:
         signal = "HOLD"
         score = Decimal("0.55")
-    table.put_item(
-        Item={
-            "asset": str(asset),
-            "timestamp": int(time.time() * 1000),
-            "type": "signal",
-            "signal": signal,
-            "score": score,
-            "anomaly": signal == "BUY" and vol > 500_000,
-            "sourceTimestamp": row.get("timestamp"),
-            "aiProvider": "groq" if USE_GROQ else "rules",
-            "aiModel": GROQ_MODEL if USE_GROQ else "deterministic-volume-rules",
-        }
-    )
+    ts_out = int(time.time() * 1000)
+    asset_s = str(asset)
+    org_id = row.get("orgId") or "__public__"
+    item_out = {
+        "asset": asset_s,
+        "timestamp": ts_out,
+        "type": "signal",
+        "orgId": str(org_id),
+        "orgLedgerSk": _org_ledger_sk(ts_out, asset_s),
+        "signal": signal,
+        "score": score,
+        "anomaly": signal == "BUY" and vol > 500_000,
+        "sourceTimestamp": row.get("timestamp"),
+        "userId": row.get("userId"),
+        "userName": row.get("userName"),
+        "termsAccepted": row.get("termsAccepted"),
+        "aiProvider": "groq" if USE_GROQ else "rules",
+        "aiModel": GROQ_MODEL if USE_GROQ else "deterministic-volume-rules",
+    }
+    table.put_item(Item=item_out)
 
 
 if FastAPI is not None:
