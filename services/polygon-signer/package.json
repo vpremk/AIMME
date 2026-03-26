@@ -1,0 +1,22 @@
+{
+  "name": "polygon-signer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "ethers": "^6.16.0",
+    "express": "^4.21.2",
+    "jose": "^6.2.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.2"
+  }
+}
