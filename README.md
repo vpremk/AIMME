@@ -136,6 +136,16 @@ aimme/
 
 - `architecture/auth0-token-vault-architecture.drawio` (editable in draw.io / diagrams.net)
 
+## BDD tests (Gherkin / Cucumber)
+
+Scenarios live under `web/bdd/features/` (Auth0 role normalization, RBAC, Token Vault env validation). Run:
+
+```bash
+cd web
+npm install
+npm run test:bdd
+```
+
 ## Prerequisites
 
 - Docker Engine and Docker Compose v2
