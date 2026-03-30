@@ -18,6 +18,15 @@ npm install
 npm run build
 ```
 
+## BDD (Gherkin / Cucumber)
+
+Feature files live under `web/bdd/features/`; step definitions under `web/bdd/steps/`. Tests exercise Auth0 role normalization, RBAC, and Token Vault config guards (no browser).
+
+```bash
+cd web
+npm run test:bdd
+```
+
 - **`npm run build`** runs `next build` (TypeScript check + optimized production bundle).
 - Fix failures locally before deploying; CI/Vercel will fail on the same errors.
 
