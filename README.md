@@ -2,6 +2,21 @@
 
 AIMME is a product-oriented market intelligence platform for capital markets that ingests market-style events, persists them, transforms them into AI-assisted trading signals, and exposes the results through APIs and a web dashboard.
 
+## Auth0 (enterprise identity)
+
+The **Next.js** app uses **[Auth0](https://auth0.com/)** with [`@auth0/nextjs-auth0`](https://github.com/auth0/nextjs-auth0) for enterprise sign-in and session management.
+
+- **Login flow:** Users authenticate through Auth0 Universal Login; routes live under `/api/auth/*` (for example `/api/auth/login`, `/api/auth/logout`, `/api/auth/callback`).
+- **Session:** The SDK maintains the browser session; server routes resolve the current user via `getSession` and expose a summary at `GET /api/auth/me`.
+- **Organizations (optional):** If you use Auth0 Organizations, enable connections on each org; otherwise tenant-wide login may be simpler. Org context is read from custom claims for multi-tenant isolation and policy (for example Ledger approvals).
+- **Role and org claims:** Post-Login Actions (or your IdP) should put **`role`**, **`org_id`**, and optionally **`org_name`** into ID/access token claims. The web app reads them using configurable claim names:
+  - `AUTH0_ROLE_CLAIM` (default `https://aimme.app/role`)
+  - `AUTH0_ORG_CLAIM` (default `https://aimme.app/org_id`)
+  - `AUTH0_ORG_NAME_CLAIM` (default `https://aimme.app/org_name`)
+- **Operator vs trader:** Role values drive the UI (for example **Imprint-Operator** mapped to `ops` for the Operations Console); defaults apply when a claim is missing.
+- **Imprint / Token Vault:** For vault signing, the app requests an **access token** with a dedicated **API audience** (`AUTH0_IMPRINT_AUDIENCE`) and imprint permission (for example `imprint:alert`, overridable via `AUTH0_IMPRINT_PERMISSION`). That token is sent to your **Token Vault** service, which holds the signing key—see *On-chain hazard logging (Polygon)* → *Signing modes* and `architecture/auth0-token-vault-architecture.drawio`.
+- **Required Auth0 app settings (typical):** `AUTH0_SECRET`, `AUTH0_ISSUER_BASE_URL`, `AUTH0_BASE_URL`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`; callback and logout URLs must match your deployment origins. Copy patterns from `web/.env.local.example`.
+
 At a high level:
 
 - **Ingestion** accepts raw event payloads (`asset`, `price`, `volume`, timestamp).
@@ -10,7 +25,8 @@ At a high level:
 - **Alerting** publishes notable events to SNS.
 - **UI** visualizes the stream and supports manual signal ingestion for testing.
 - **Market data enrichment** uses [Massive](https://massive.com/) (formerly *Polygon.io*, a market-data vendor—**not** the Polygon blockchain) for OHLC aggregates in dashboard candlestick charts.
-- **On-chain attestations** use [Polygon PoS](https://polygon.technology/polygon-pos) (via public RPC and **Hardhat** on **Amoy** testnet today) so operators can **imprint** high-severity hazard metadata in `HazardRegistry.sol`, verified on [Polygonscan](https://polygonscan.com/).
+- **On-chain attestations** use [Polygon PoS](https://polygon.technology/polygon-pos) (via public RPC and **Hardhat** on **Amoy** testnet today) so operators can **approve/imprint** high-severity hazard metadata in `HazardRegistry.sol`, verified on [Polygonscan](https://polygonscan.com/).
+- **Enterprise auth + secure signing:** Summarized in **Auth0 (enterprise identity)** above; Token Vault can sign Polygon txs so the web runtime does not hold a raw key in vault mode.
 
 **Deployment modes:** Docker for local testing, and AWS serverless for the API plus **Vercel** for the Next.js app—without changing the core ingest → signal → alert flow. Polygon writes are issued from the **web** runtime (`ethers`) against your chosen RPC; AIMME does not run a Polygon validator or bor node.
 
@@ -41,12 +57,14 @@ At a high level:
 - **Docker & Compose** — local runtime
 - **Redis** — local stream / pub-sub stand-in for Kinesis-style pipelines
 - **LocalStack** — AWS API mocking (S3, SQS, SNS, DynamoDB in compose)
+- **Auth0** — enterprise login, org + role claims, RBAC in the web app
 - **Massive** (formerly *Polygon.io*) — **market data API** for OHLC aggregates in charts (distinct from the Polygon chain below).
 - **Polygon PoS & tooling ([polygon.technology](https://polygon.technology/))**
   - **Solidity ^0.8.20** — `HazardRegistry` smart contract (`contracts/`)
   - **Hardhat** — compile/deploy to **Amoy** (chain id **80002**) or **Polygon PoS mainnet** (chain id **137**) using an RPC provider (e.g. Alchemy) and a funded signer
-  - **ethers.js v6** (Next.js server routes) — submit `logHazard` transactions; gas paid in **POL** (legacy “MATIC”) on the selected Polygon network
+  - **ethers.js v6** (Next.js server routes) — build calldata for `logHazard` and (in local mode) submit transactions; gas paid in **POL** (legacy “MATIC”) on the selected Polygon network
   - **Polygonscan / Amoy Polygonscan** — optional API key for richer tx status in the dashboard
+- **Token Vault (signing service)** — custody + signing endpoint for Polygon approvals (vault mode)
 
 ## Serverless (AWS CDK / CloudFormation)
 
@@ -114,6 +132,10 @@ aimme/
   docker-compose.yml
 ```
 
+## Architecture (Auth0 + Token Vault)
+
+- `architecture/auth0-token-vault-architecture.drawio` (editable in draw.io / diagrams.net)
+
 ## Prerequisites
 
 - Docker Engine and Docker Compose v2
@@ -128,7 +150,7 @@ From the repository root:
 docker compose up --build
 ```
 
-- **Polygon imprints** are not part of Compose by default: run `web` (`npm run dev` in `web/`) with `POLYGON_RPC_URL`, `POLYGON_PRIVATE_KEY`, and `HAZARD_REGISTRY_ADDRESS` if you want to test **Imprint on Polygon** against Amoy or mainnet.
+- **Polygon approvals/imprints** are not part of Compose by default: run `web` (`npm run dev` in `web/`) with either local signing envs (`POLYGON_PRIVATE_KEY`) or vault signing envs (Token Vault + Auth0).
 - API: [http://localhost:8000](http://localhost:8000) — OpenAPI docs at [http://localhost:8000/docs](http://localhost:8000/docs)
 - Redis (from host): `localhost:6380` → container `6379` (avoids colliding with a system Redis on `6379`)
 - LocalStack: `http://localhost:4566` (set `AWS_ENDPOINT_URL` / boto3 `endpoint_url` to this in app code)
@@ -198,13 +220,42 @@ AIMME supports immutable hazard writes on Polygon via `contracts/HazardRegistry.
 Required server env vars for on-chain writes:
 
 - `POLYGON_RPC_URL`
-- `POLYGON_PRIVATE_KEY`
 - `HAZARD_REGISTRY_ADDRESS`
 - `POLYGON_CHAIN_ID` (default `80002` for Amoy)
 
 Optional:
 
 - `POLYGONSCAN_API_KEY` (explorer status lookup)
+
+### Signing modes (local vs Token Vault)
+
+AIMME supports two signing modes for the **Approve** button in the Ledger Audit UI:
+
+#### 1) Local signing (dev / simplest)
+
+- `POLYGON_SIGNING_MODE=local` (default)
+- Requires:
+  - `POLYGON_PRIVATE_KEY` (server-side only)
+
+#### 2) Token Vault signing (recommended for enterprise)
+
+- `POLYGON_SIGNING_MODE=vault`
+- Web API route builds calldata and requests a signature/tx broadcast from Token Vault.
+- Requires:
+  - `TOKEN_VAULT_URL`
+  - `AUTH0_IMPRINT_AUDIENCE` (Auth0 API Identifier for the imprint API)
+- Optional (common in production):
+  - `TOKEN_VAULT_SERVICE_TOKEN` (service-to-service auth to Vault)
+  - `TOKEN_VAULT_SIGN_PATH` (default `/v1/sign/imprint`)
+  - `TOKEN_VAULT_DISABLED_ORGS` (comma-separated org ids/names to block approvals, e.g. `Citadel`)
+
+### Auth0 claims (org + role)
+
+The web app reads org + role from Auth0 session claims:
+
+- `AUTH0_ROLE_CLAIM` (default `https://aimme.app/role`)
+- `AUTH0_ORG_CLAIM` (default `https://aimme.app/org_id`)
+- `AUTH0_ORG_NAME_CLAIM` (default `https://aimme.app/org_name`)
 
 Deploy `HazardRegistry` to Polygon Amoy (Hardhat):
 
@@ -331,7 +382,7 @@ Example: this stack exposes `POST /alert`, not `GET /alerts` by default.
 - Add richer strategy logic and configurable thresholds per asset/profile.
 - Integrate managed event backbones (e.g., Redis Streams/Kinesis) for higher throughput.
 - Introduce stronger data quality checks and replay-safe processing semantics.
-- **Polygon:** durable server-side dedupe/storage for imprint keys (e.g. DynamoDB) across Vercel instances; optional **Polygon PoS mainnet** default; role-gating who may trigger gas spend.
+- **Polygon/Token Vault:** durable server-side policy + audit trails for approvals (org-based disable lists, scoped tokens, and vault-side key custody controls).
 
 ### Later
 
